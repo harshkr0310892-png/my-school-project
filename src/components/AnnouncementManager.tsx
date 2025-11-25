@@ -75,6 +75,72 @@ const AnnouncementManager = () => {
   const saveAnnouncements = (updatedAnnouncements: Announcement[]) => {
     setAnnouncements(updatedAnnouncements);
     localStorage.setItem('royal-academy-announcements', JSON.stringify(updatedAnnouncements));
+    
+    // Also update navigation notifications for any announcements that were modified
+    const navNotifications = JSON.parse(localStorage.getItem('ramakrishna-mission-announcements') || '[]');
+    let updatedNavNotifications = [...navNotifications];
+    let navNotificationsChanged = false;
+    
+    // Handle published announcements - add/update them in navigation notifications
+    updatedAnnouncements.forEach(announcement => {
+      if (announcement.published) {
+        // Check if this announcement already exists in navigation notifications
+        const existingNavIndex = updatedNavNotifications.findIndex((n: any) => n.id === announcement.id);
+        
+        const navNotification = {
+          id: announcement.id,
+          title: announcement.title,
+          message: announcement.message,
+          timestamp: announcement.timestamp,
+          type: announcement.type,
+          unread: true
+        };
+        
+        if (existingNavIndex !== -1) {
+          // Update existing navigation notification
+          updatedNavNotifications[existingNavIndex] = navNotification;
+        } else {
+          // Add new navigation notification if it doesn't exist
+          updatedNavNotifications = [navNotification, ...updatedNavNotifications];
+        }
+        navNotificationsChanged = true;
+      }
+    });
+    
+    // Handle deleted announcements - remove them from navigation notifications
+    const currentAnnouncementIds = new Set(updatedAnnouncements.map(a => a.id));
+    const deletedAnnouncements = announcements.filter(a => !currentAnnouncementIds.has(a.id));
+    
+    if (deletedAnnouncements.length > 0) {
+      const deletedIds = deletedAnnouncements.map(a => a.id);
+      updatedNavNotifications = updatedNavNotifications.filter((n: any) => 
+        !deletedIds.includes(n.id)
+      );
+      navNotificationsChanged = true;
+    }
+    
+    // Handle unpublished announcements - remove only those that correspond to announcements
+    const currentPublishedIds = new Set(
+      updatedAnnouncements.filter(a => a.published).map(a => a.id)
+    );
+    
+    const previousPublishedIds = new Set(
+      announcements.filter(a => a.published).map(a => a.id)
+    );
+    
+    // Find announcements that were unpublished
+    const unpublishedIds = [...previousPublishedIds].filter(id => !currentPublishedIds.has(id));
+    
+    if (unpublishedIds.length > 0) {
+      updatedNavNotifications = updatedNavNotifications.filter((n: any) => 
+        !unpublishedIds.includes(n.id)
+      );
+      navNotificationsChanged = true;
+    }
+    
+    if (navNotificationsChanged) {
+      localStorage.setItem('ramakrishna-mission-announcements', JSON.stringify(updatedNavNotifications));
+    }
   };
 
   const handleAddAnnouncement = () => {
@@ -109,6 +175,7 @@ const AnnouncementManager = () => {
       : announcements.map(a => a.id === editingAnnouncement.id ? editingAnnouncement : a);
 
     saveAnnouncements(updatedAnnouncements);
+  
     setIsEditing(false);
     setEditingAnnouncement(null);
     setMessage(isAddingNew ? "Announcement created successfully!" : "Announcement updated successfully!");
@@ -119,6 +186,7 @@ const AnnouncementManager = () => {
     if (confirm("Are you sure you want to delete this announcement?")) {
       const updatedAnnouncements = announcements.filter(a => a.id !== id);
       saveAnnouncements(updatedAnnouncements);
+    
       setMessage("Announcement deleted successfully!");
       setTimeout(() => setMessage(""), 3000);
     }
@@ -132,6 +200,7 @@ const AnnouncementManager = () => {
     );
     saveAnnouncements(updatedAnnouncements);
     const announcement = updatedAnnouncements.find(a => a.id === id);
+  
     setMessage(announcement?.published ? "Announcement published!" : "Announcement unpublished!");
     setTimeout(() => setMessage(""), 3000);
   };
